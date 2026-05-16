@@ -4,6 +4,7 @@
 #define KCCIM_H
 
 #include <stddef.h>
+#include <wchar.h>
 
 #ifdef KCCIM_EXPORTS
     #define KCCIM_API __declspec(dllexport)

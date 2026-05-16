@@ -2,3 +2,7 @@ TestApp/bin/
 TestApp/obj/
 .vs/
 *.pdb
+*.exe
+*-test.dll
+bin/
+obj/

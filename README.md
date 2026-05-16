@@ -32,23 +32,34 @@ C:.
 
 ```
 
-## Build and Run
+## Build
 
-Run the following script in your PowerShell terminal from the `TestApp` directory to clean, compile, and run the application:
+From this repository root, build the native library with GCC:
 
 ```powershell
-Remove-Item kccim.dll -ErrorAction SilentlyContinue
-Remove-Item bin\Debug\net10.0-windows\kccim.dll -ErrorAction SilentlyContinue
-Remove-Item ..\kccim.dll -ErrorAction SilentlyContinue
+gcc -Wall -Wextra -O2 -shared -DKCCIM_EXPORTS -Iinclude -Iinternal -o kccim.dll src/automata.c src/table.c src/kccim.c
+```
 
-# Compiled using only the valid source files listed in the project structure
-gcc -shared -o bin\Debug\net10.0-windows\kccim.dll ../src/automata.c ../src/table.c ../src/kccim.c -DKCCIM_EXPORTS
+If GNU Make is available:
 
-Copy-Item bin\Debug\net10.0-windows\kccim.dll -Destination .
-Copy-Item bin\Debug\net10.0-windows\kccim.dll -Destination ..\
+```powershell
+make
+```
 
-dotnet run
+The generated `kccim.dll` can then be copied next to the C# executable that loads it through P/Invoke.
 
+## Test
+
+The regression tests are written as a small .NET console project. It builds `kccim.dll` into the test output directory before running:
+
+```powershell
+dotnet run --project tests/Kccim.Tests/Kccim.Tests.csproj
+```
+
+For manual GUI testing:
+
+```powershell
+dotnet run --project tests/Kccim.Gui/Kccim.Gui.csproj
 ```
 
 ## Usage and Testing

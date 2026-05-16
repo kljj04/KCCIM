@@ -1,17 +1,20 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -O2 -shared -DKCCIM_EXPORTS
+CC ?= gcc
+CFLAGS ?= -Wall -Wextra -O2
+CPPFLAGS ?= -DKCCIM_EXPORTS -Iinclude -Iinternal
+LDFLAGS ?= -shared
 TARGET = kccim.dll
-
-# 새로 쪼갠 폴더 안의 파일들까지 전부 컴파일 대상에 추가!
 SRCS = src/automata.c \
        src/kccim.c \
-       src/table.c \
+       src/table.c
 
-
+.PHONY: all clean test
 all: $(TARGET)
 
 $(TARGET): $(SRCS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $(TARGET) $(SRCS)
+
+test:
+	dotnet run --project tests/Kccim.Tests/Kccim.Tests.csproj
 
 clean:
-	del /Q $(TARGET)
+	-del /Q $(TARGET)

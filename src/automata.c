@@ -4,6 +4,31 @@
 #include <wchar.h>
 #include <string.h>
 
+static void append_commit(kccim_t ctx, const wchar_t* text) {
+    if (ctx && text && text[0] != L'\0') {
+        wcscat_s(ctx->commit_buf, 1024, text);
+    }
+}
+
+static void append_commit_char(kccim_t ctx, wchar_t ch) {
+    if (!ctx || ch == L'\0') return;
+
+    size_t len = wcslen(ctx->commit_buf);
+    if (len < 1023) {
+        ctx->commit_buf[len] = ch;
+        ctx->commit_buf[len + 1] = L'\0';
+    }
+}
+
+static void clear_composition(kccim_t ctx) {
+    ctx->cho = -1;
+    ctx->jung = -1;
+    ctx->jong = 0;
+    memset(ctx->comp_buf, 0, sizeof(ctx->comp_buf));
+    ctx->comp_length = 0;
+    ctx->state = S_EMPTY;
+}
+
 static int get_cho_index(wchar_t ch) {
     wchar_t cho_list[] = L"ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
     for (int i = 0; i < 19; i++) { if (cho_list[i] == ch) return i; }
@@ -53,6 +78,23 @@ int kccim_put_key(kccim_t ctx, int vk_code)
 {
     if (!ctx) return 0;
 
+    if (!ctx->is_korean) {
+        if (vk_code == 0x08) {
+            size_t len = wcslen(ctx->commit_buf);
+            if (len > 0) ctx->commit_buf[len - 1] = L'\0';
+        } else if (vk_code == 0x0D || vk_code == 0x0A) {
+            append_commit_char(ctx, L'\n');
+        } else if (vk_code >= 0 && vk_code <= 0xFFFF) {
+            append_commit_char(ctx, (wchar_t)vk_code);
+        } else {
+            return 0;
+        }
+
+        clear_composition(ctx);
+        wcscpy_s(ctx->result_buf, 1024, ctx->commit_buf);
+        return 1;
+    }
+
     if (vk_code == 0x08) 
     {
         if (ctx->jong != 0) {
@@ -91,15 +133,9 @@ int kccim_put_key(kccim_t ctx, int vk_code)
 
     if (vk_code == 0x20 || vk_code == 0x0D || vk_code == 0x0A) 
     {
-        if (ctx->comp_buf[0] != L'\0') wcscat_s(ctx->commit_buf, 1024, ctx->comp_buf);
-        ctx->cho = -1; ctx->jung = -1; ctx->jong = 0;
-        memset(ctx->comp_buf, 0, sizeof(ctx->comp_buf));
-        
-        size_t len = wcslen(ctx->commit_buf);
-        if (len < 1023) {
-            ctx->commit_buf[len] = (vk_code == 0x20) ? L' ' : L'\n';
-            ctx->commit_buf[len + 1] = L'\0';
-        }
+        append_commit(ctx, ctx->comp_buf);
+        clear_composition(ctx);
+        append_commit_char(ctx, (vk_code == 0x20) ? L' ' : L'\n');
         wcscpy_s(ctx->result_buf, 1024, ctx->commit_buf);
         return 1;
     }
@@ -120,7 +156,7 @@ int kccim_put_key(kccim_t ctx, int vk_code)
         if (ctx->cho == -1) { ctx->cho = input_cho; } 
         else if (ctx->cho != -1 && ctx->jung == -1) {
             wchar_t solo[2] = { (wchar_t)ctx->cho, L'\0' };
-            wcscat_s(ctx->commit_buf, 1024, solo);
+            append_commit(ctx, solo);
             ctx->cho = input_cho;
         } 
         else if (ctx->cho != -1 && ctx->jung != -1 && ctx->jong == 0) { ctx->jong = input_cho; } 
@@ -128,7 +164,7 @@ int kccim_put_key(kccim_t ctx, int vk_code)
             wchar_t merged = merge_jong((wchar_t)ctx->jong, input_cho);
             if (merged != 0) { ctx->jong = merged; } 
             else {
-                wcscat_s(ctx->commit_buf, 1024, ctx->comp_buf);
+                append_commit(ctx, ctx->comp_buf);
                 ctx->cho = input_cho; ctx->jung = -1; ctx->jong = 0;
             }
         }
@@ -139,9 +175,9 @@ int kccim_put_key(kccim_t ctx, int vk_code)
             wchar_t merged = merge_jung((wchar_t)ctx->jung, input_jung);
             if (merged != 0) { ctx->jung = merged; } 
             else {
-                wcscat_s(ctx->commit_buf, 1024, ctx->comp_buf);
+                append_commit(ctx, ctx->comp_buf);
                 wchar_t solo[2] = { input_jung, L'\0' };
-                wcscat_s(ctx->commit_buf, 1024, solo);
+                append_commit(ctx, solo);
                 ctx->cho = -1; ctx->jung = -1; ctx->jong = 0;
             }
         }
@@ -166,21 +202,20 @@ int kccim_put_key(kccim_t ctx, int vk_code)
             int d_idx = get_jong_index((wchar_t)ctx->jong);
             wchar_t combined = (wchar_t)(0xAC00 + (c_idx * 588) + (j_idx * 28) + d_idx);
             wchar_t solo[2] = { combined, L'\0' };
-            wcscat_s(ctx->commit_buf, 1024, solo);
+            append_commit(ctx, solo);
 
             ctx->cho = next_cho; ctx->jung = input_jung; ctx->jong = 0;
         }
         else {
-            if (ctx->comp_buf[0] != L'\0') wcscat_s(ctx->commit_buf, 1024, ctx->comp_buf);
+            append_commit(ctx, ctx->comp_buf);
             wchar_t solo[2] = { input_jung, L'\0' };
-            wcscat_s(ctx->commit_buf, 1024, solo);
+            append_commit(ctx, solo);
             ctx->cho = -1; ctx->jung = -1; ctx->jong = 0;
         }
     }
     else {
-        if (ctx->comp_buf[0] != L'\0') wcscat_s(ctx->commit_buf, 1024, ctx->comp_buf);
-        size_t len = wcslen(ctx->commit_buf);
-        if (len < 1023) { ctx->commit_buf[len] = (wchar_t)vk_code; ctx->commit_buf[len + 1] = L'\0'; }
+        append_commit(ctx, ctx->comp_buf);
+        append_commit_char(ctx, (wchar_t)vk_code);
         ctx->cho = -1; ctx->jung = -1; ctx->jong = 0;
     }
 
@@ -188,6 +223,7 @@ RENDER:
     memset(ctx->comp_buf, 0, sizeof(ctx->comp_buf));
     if (ctx->cho != -1 && ctx->jung == -1) {
         ctx->comp_buf[0] = (wchar_t)ctx->cho;
+        ctx->state = S_CHO;
     } 
     else if (ctx->cho != -1 && ctx->jung != -1) {
         int c_idx = get_cho_index((wchar_t)ctx->cho);
@@ -198,8 +234,13 @@ RENDER:
         } else {
             ctx->comp_buf[0] = (wchar_t)ctx->cho;
         }
+        ctx->state = (ctx->jong != 0) ? S_JONG : S_JUNG;
+    }
+    else {
+        ctx->state = S_EMPTY;
     }
 
+    ctx->comp_length = (ctx->comp_buf[0] == L'\0') ? 0 : 1;
     wcscpy_s(ctx->result_buf, 1024, ctx->commit_buf);
     wcscat_s(ctx->result_buf, 1024, ctx->comp_buf);
     return 1;
