@@ -1,0 +1,4 @@
+TestApp/bin/
+TestApp/obj/
+.vs/
+*.pdb
