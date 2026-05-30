@@ -30,21 +30,24 @@ static void clear_composition(kccim_t ctx) {
 }
 
 static int get_cho_index(wchar_t ch) {
-    wchar_t cho_list[] = L"ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
-    for (int i = 0; i < 19; i++) { if (cho_list[i] == ch) return i; }
+    for (int i = 0; i < 19; i++) {
+        if (KCCIM_CHOSUNG_LIST[i] == ch) return i;
+    }
     return -1;
 }
 
 static int get_jung_index(wchar_t ch) {
-    wchar_t jung_list[] = L"ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ";
-    for (int i = 0; i < 21; i++) { if (jung_list[i] == ch) return i; }
+    for (int i = 0; i < 21; i++) {
+        if (KCCIM_JUNGSUNG_LIST[i] == ch) return i;
+    }
     return -1;
 }
 
 static int get_jong_index(wchar_t ch) {
     if (ch == 0) return 0;
-    wchar_t jong_list[] = L" ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ";
-    for (int i = 1; i < 28; i++) { if (jong_list[i] == ch) return i; }
+    for (int i = 1; i < 28; i++) {
+        if (KCCIM_JONGSUNG_LIST[i] == ch) return i;
+    }
     return 0;
 }
 
@@ -95,7 +98,7 @@ int kccim_put_key(kccim_t ctx, int vk_code)
         return 1;
     }
 
-    if (vk_code == 0x08) 
+    if (vk_code == 0x08)
     {
         if (ctx->jong != 0) {
             wchar_t j = (wchar_t)ctx->jong;
@@ -126,12 +129,12 @@ int kccim_put_key(kccim_t ctx, int vk_code)
             size_t len = wcslen(ctx->commit_buf);
             if (len > 0) ctx->commit_buf[len - 1] = L'\0';
         }
-        
+
         memset(ctx->comp_buf, 0, sizeof(ctx->comp_buf));
         goto RENDER;
     }
 
-    if (vk_code == 0x20 || vk_code == 0x0D || vk_code == 0x0A) 
+    if (vk_code == 0x20 || vk_code == 0x0D || vk_code == 0x0A)
     {
         append_commit(ctx, ctx->comp_buf);
         clear_composition(ctx);
@@ -153,27 +156,37 @@ int kccim_put_key(kccim_t ctx, int vk_code)
     wchar_t input_jung = (wchar_t)jungsung_table[target_vk];
 
     if (input_cho != 0) {
-        if (ctx->cho == -1) { ctx->cho = input_cho; } 
+        if (ctx->cho == -1) { ctx->cho = input_cho; }
         else if (ctx->cho != -1 && ctx->jung == -1) {
             wchar_t solo[2] = { (wchar_t)ctx->cho, L'\0' };
             append_commit(ctx, solo);
             ctx->cho = input_cho;
-        } 
-        else if (ctx->cho != -1 && ctx->jung != -1 && ctx->jong == 0) { ctx->jong = input_cho; } 
+        }
+        else if (ctx->cho != -1 && ctx->jung != -1 && ctx->jong == 0) {
+            if (get_jong_index(input_cho) > 0) {
+                ctx->jong = input_cho;
+            }
+            else {
+                append_commit(ctx, ctx->comp_buf);
+                ctx->cho = input_cho;
+                ctx->jung = -1;
+                ctx->jong = 0;
+            }
+        }
         else if (ctx->cho != -1 && ctx->jung != -1 && ctx->jong != 0) {
             wchar_t merged = merge_jong((wchar_t)ctx->jong, input_cho);
-            if (merged != 0) { ctx->jong = merged; } 
+            if (merged != 0) { ctx->jong = merged; }
             else {
                 append_commit(ctx, ctx->comp_buf);
                 ctx->cho = input_cho; ctx->jung = -1; ctx->jong = 0;
             }
         }
-    } 
+    }
     else if (input_jung != 0) {
-        if (ctx->cho != -1 && ctx->jung == -1) { ctx->jung = input_jung; } 
+        if (ctx->cho != -1 && ctx->jung == -1) { ctx->jung = input_jung; }
         else if (ctx->cho != -1 && ctx->jung != -1 && ctx->jong == 0) {
             wchar_t merged = merge_jung((wchar_t)ctx->jung, input_jung);
-            if (merged != 0) { ctx->jung = merged; } 
+            if (merged != 0) { ctx->jung = merged; }
             else {
                 append_commit(ctx, ctx->comp_buf);
                 wchar_t solo[2] = { input_jung, L'\0' };
@@ -184,6 +197,8 @@ int kccim_put_key(kccim_t ctx, int vk_code)
         else if (ctx->cho != -1 && ctx->jung != -1 && ctx->jong != 0) {
             wchar_t next_cho = 0;
             wchar_t j = (wchar_t)ctx->jong;
+
+            // 깔끔하게 수정된 겹받침 단일 문자 분리 조건문들!
             if (j == L'ㄳ') { ctx->jong = L'ㄱ'; next_cho = L'ㅅ'; }
             else if (j == L'ㄵ') { ctx->jong = L'ㄴ'; next_cho = L'ㅈ'; }
             else if (j == L'ㄶ') { ctx->jong = L'ㄴ'; next_cho = L'ㅎ'; }
@@ -224,7 +239,7 @@ RENDER:
     if (ctx->cho != -1 && ctx->jung == -1) {
         ctx->comp_buf[0] = (wchar_t)ctx->cho;
         ctx->state = S_CHO;
-    } 
+    }
     else if (ctx->cho != -1 && ctx->jung != -1) {
         int c_idx = get_cho_index((wchar_t)ctx->cho);
         int j_idx = get_jung_index((wchar_t)ctx->jung);
