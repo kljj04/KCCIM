@@ -3,7 +3,6 @@ TestApp/obj/
 .vs/
 *.pdb
 *.exe
-*-test.dll
 *.dll
 bin/
 obj/
