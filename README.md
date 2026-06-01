@@ -1,72 +1,109 @@
 # KCCIM (Korean Character Combination Input Method)
 
-KCCIM is a C-based Korean automata library integrated with a C# WinForms text editor. It provides precise, low-level control over Korean character combination and insertion by intercepting Windows messages via `WndProc`, resolving common issues found in standard IME behaviors during mid-sentence editing.
+KCCIM is a small C library that implements a Korean input-state automaton. A C# WinForms test GUI and unit tests (under tests/) demonstrate how the native library is loaded via P/Invoke to handle Korean composition with finer control than the default IME.
 
-## Features
+## Key features
 
-* **Single-Character Highlighting**: Unlike standard IMEs that highlight an entire block, this implementation precisely highlights only the final actively changing character with a blue underline.
-* **Input Synchronization**: Resolves duplicate key events (e.g., duplicate spacebar inputs) triggered by the OS during Korean text composition by intercepting inputs at the Windows message pump level.
-* **Input Mode Toggle**: Supports clean switching between Korean composition and direct English input using the Right Alt or Hangul key.
-* **Native C Integration**: The core Korean text composition state machine is implemented in pure C, compiled into a dynamic link library (`kccim.dll`), and invoked seamlessly via P/Invoke in C#.
+- Precise single-character composition highlighting (only the currently changing character is underlined).
+- Intercepts Windows input at the message pump level to avoid duplicate events and keep caret stability during composition.
+- Toggle between Korean composition and direct English input (Right Alt / Hangul key).
+- Core composition engine implemented in portable C and exposed as a dynamic library (`kccim.dll`).
 
-## Project Structure
+## Requirements
 
-```text
+- Windows (tested on Windows 10/11)
+- GCC (MinGW/MSYS2) or any C compiler that can produce a Windows DLL
+- CMake >= 3.20 (optional)
+- .NET SDK 8.0 (for the test projects and GUI)
+
+## Project layout
+
+```
 C:.
-│  kccim.dll
-│  Makefile
+│  kccim.dll                  # prebuilt binary (convenience)
+│  CMakeLists.txt
+│  build.bat
+│  cpy.bat
 │  README.md
-│  
+│
 ├─include
 │      kccim.h
 │      table.h
-│      
+│
 ├─internal
 │      automata_states.h
 │      kccim_internal.h
-│      
-└─src
-        automata.c
-        kccim.c
-        table.c
-
+│
+├─src
+│      automata.c
+│      kccim.c
+│      table.c
+│
+└─tests
+       ├─Kccim.Tests          # .NET test runner
+       └─Kccim.Gui            # small WinForms GUI for manual testing
 ```
 
-## Build
+## Building
 
-From this repository root, build the native library with GCC:
+1) Quick build with GCC (MinGW / MSYS):
 
 ```powershell
+# From repository root (Windows)
+.
+# using provided batch script:
+build.bat
+
+# or run manually with gcc:
+
 gcc -Wall -Wextra -O2 -shared -DKCCIM_EXPORTS -Iinclude -Iinternal -o kccim.dll src/automata.c src/table.c src/kccim.c
 ```
 
-If GNU Make is available:
+3) Using CMake (recommended for IDEs / CLion / Visual Studio generators):
 
 ```powershell
-make
+# out-of-source build
+cmake -S . -B build
+cmake --build build --config Debug
+# For MinGW: cmake -G "MinGW Makefiles" -S . -B build && cmake --build build
 ```
 
-The generated `kccim.dll` can then be copied next to the C# executable that loads it through P/Invoke.
+Notes: build.bat (and the CMake target) set -DKCCIM_EXPORTS to export symbols for the DLL.
 
-## Test
+## Copying the DLL to test output
 
-The regression tests are written as a small .NET console project. It builds `kccim.dll` into the test output directory before running:
+The repo includes `cpy.bat` to copy the built `kccim.dll` into the GUI test project's output folder:
+
+```powershell
+cpy.bat
+# or manually:
+copy /Y kccim.dll tests\Kccim.Gui\bin\Debug\net8.0-windows\
+```
+
+A prebuilt `kccim.dll` is included for convenience; rebuild when making changes to the native code.
+
+## Running tests and GUI
+
+- Run unit/regression tests:
 
 ```powershell
 dotnet run --project tests/Kccim.Tests/Kccim.Tests.csproj
 ```
 
-For manual GUI testing:
+- Run the manual test GUI (WinForms):
 
 ```powershell
 dotnet run --project tests/Kccim.Gui/Kccim.Gui.csproj
 ```
 
-## Usage and Testing
+## Development notes
 
-1. Launch the application and enter any text.
-2. Click anywhere inside the text box to reposition the caret.
-3. Continue typing in Korean; the caret remains stable at the insertion point, and only the trailing character reflects the composition highlight.
-4. Press the Right Alt key to switch to English input mode and verify direct text input.
+- The C headers live in `include/` and internal helpers in `internal/`.
+- Follow the build scripts / CMake setup when adding or renaming source files.
+- Ensure the DLL is copied into the test GUI's runtime folder before launching the GUI.
 
-```
+## Contributing
+
+Bug reports and PRs welcome. Keep changes focused and add tests when possible.
+Please read CONTRIBUTING.md for more information.
+

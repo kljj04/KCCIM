@@ -4,5 +4,6 @@ TestApp/obj/
 *.pdb
 *.exe
 *-test.dll
+*.dll
 bin/
 obj/
